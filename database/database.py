@@ -18,10 +18,11 @@ def new_user(id):
         '_id': id,
         'verify_status': {
             'is_verified': False,
-            'verified_time': "",
+            'verified_time': 0,
             'verify_token': "",
             'link': ""
-        }
+        },
+        'video_count': 0  # Added to track free videos accessed
     }
 
 async def present_user(user_id: int):
@@ -50,3 +51,15 @@ async def full_userbase():
 async def del_user(user_id: int):
     await user_data.delete_one({'_id': user_id})
     return
+
+# New methods to handle video count tracking
+
+async def get_user_video_count(user_id: int) -> int:
+    user = await user_data.find_one({'_id': user_id})
+    if user and 'video_count' in user:
+        return user['video_count']
+    return 0
+
+async def increment_user_video_count(user_id: int):
+    await user_data.update_one({'_id': user_id}, {'$inc': {'video_count': 1}})
+    
