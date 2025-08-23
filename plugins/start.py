@@ -31,6 +31,7 @@ from helper_func import subscribed, encode, decode, get_messages, get_shortlink,
 from database.database import add_user, del_user, full_userbase, present_user, get_user_video_count, increment_user_video_count, user_data, db_update_verify_status
 from shortzy import Shortzy
 
+# Setup logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,13 @@ async def start_command(client: Client, message: Message):
     try:
         logger.debug(f"Received /start from user {user_id}")
 
+        # Owner Check: Only respond if user is owner/admin
         if user_id in ADMINS:
-            await message.reply("You are the owner! Additional actions can be added here.")
+            # You can customize owner's response or comment out temporarily for testing
+            await message.reply("Hello Owner! Your bot is running smoothly.")
             return
 
+        # Add user if new
         if not await present_user(user_id):
             try:
                 await add_user(user_id)
@@ -51,8 +55,11 @@ async def start_command(client: Client, message: Message):
                 logger.error(f"Error adding user {user_id}: {e}")
 
         verify_status = await get_verify_status(user_id)
+
+        # Reset verification if expired
         if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
             await update_verify_status(user_id, is_verified=False)
+            verify_status['is_verified'] = False  # update local copy
 
         video_count = await get_user_video_count(user_id)
         logger.debug(f"User {user_id} video_count: {video_count}")
@@ -71,7 +78,7 @@ async def start_command(client: Client, message: Message):
 
                 if len(argument) == 3:
                     try:
-                        start = int(int(argument[1]) / abs(client.db_channel.id))
+                        start = int(int(argument[11]) / abs(client.db_channel.id))
                         end = int(int(argument) / abs(client.db_channel.id))
                     except Exception as exc:
                         logger.error(f"Invalid argument numbers from user {user_id}: {exc}")
@@ -167,18 +174,20 @@ async def start_command(client: Client, message: Message):
     except Exception as e:
         logger.error(f"Unhandled exception in start_command for user {user_id}: {e}", exc_info=True)
 
-# Reset command to clear video count and verification status for testing
 @Bot.on_message(filters.command('reset') & filters.private)
 async def reset_user_data(client: Client, message: Message):
     user_id = message.from_user.id
     try:
+        # Reset verification status
         await update_verify_status(user_id, verify_token="", is_verified=False, verified_time=0, link="")
+        # Reset video count
         await user_data.update_one({'_id': user_id}, {'$set': {'video_count': 0}})
         await message.reply("Your video count and verification status have been reset. You can test free videos and verification again.")
         logger.info(f"Reset data for user {user_id}")
     except Exception as e:
         logger.error(f"Error resetting data for user {user_id}: {e}", exc_info=True)
         await message.reply("An error occurred while resetting your data. Please try again later.")
+                
         
             
     
