@@ -62,4 +62,7 @@ async def get_user_video_count(user_id: int) -> int:
 
 async def increment_user_video_count(user_id: int):
     await user_data.update_one({'_id': user_id}, {'$inc': {'video_count': 1}})
+    user = await user_data.find_one({'_id': user_id})
+    video_count = user.get('video_count', 0) if user else 0
+    print(f'DEBUG: Video count for user {user_id} after increment: {video_count}')
     
