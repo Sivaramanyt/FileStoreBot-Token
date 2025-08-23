@@ -50,17 +50,13 @@ async def start_command(client: Client, message: Message):
     if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
         await update_verify_status(user_id, is_verified=False)
 
-    if "verify_" in message.text:
-        _, token = message.text.split("_", 1)
-        if verify_status['verify_token'] != token:
-            return await message.reply("Your token is invalid or Expired. Try again by clicking /start")
-        await update_verify_status(user_id, is_verified=True, verified_time=time.time())
-        await message.reply(f"Your token successfully verified and valid for: 24 Hour", protect_content=False, quote=True)
-        return
-
+    # Debug print for verification status and video count
     video_count = await get_user_video_count(user_id)
+    print(f"[DEBUG] User {user_id} video_count: {video_count}")
+    print(f"[DEBUG] User {user_id} verified status: {verify_status['is_verified']}")
 
     if video_count < 3 or verify_status['is_verified']:
+        print(f"[DEBUG] Allowing video access for user {user_id}")
         try:
             base64_string = message.text.split(" ", 1)[1]
         except:
@@ -73,7 +69,7 @@ async def start_command(client: Client, message: Message):
             if len(argument) == 3:
                 try:
                     start = int(int(argument[1]) / abs(client.db_channel.id))
-                    end = int(int(argument[2]) / abs(client.db_channel.id))
+                    end = int(int(argument) / abs(client.db_channel.id))
                 except:
                     return
                 if start <= end:
@@ -123,9 +119,11 @@ async def start_command(client: Client, message: Message):
 
             if video_count < 3:
                 await increment_user_video_count(user_id)
+                print(f"[DEBUG] Incremented video count for user {user_id}")
         return
 
     else:
+        print(f"[DEBUG] Asking user {user_id} for verification")
         if not verify_status['is_verified'] and IS_VERIFY:
             token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
             await update_verify_status(user_id, verify_token=token, link="")
@@ -157,6 +155,6 @@ async def start_command(client: Client, message: Message):
         reply_markup=reply_markup,
         disable_web_page_preview=True,
         quote=True
-        )
-                        
+    )
+                                                      
                     
