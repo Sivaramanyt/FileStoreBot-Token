@@ -28,7 +28,7 @@ from config import (
     OWNER_ID,
 )
 from helper_func import subscribed, encode, decode, get_messages, get_shortlink, get_verify_status, update_verify_status, get_exp_time
-from database.database import add_user, del_user, full_userbase, present_user, get_user_video_count, increment_user_video_count
+from database.database import add_user, del_user, full_userbase, present_user, get_user_video_count, increment_user_video_count, user_data, db_update_verify_status
 from shortzy import Shortzy
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
@@ -50,13 +50,9 @@ async def start_command(client: Client, message: Message):
     if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
         await update_verify_status(user_id, is_verified=False)
 
-    # Debug print for verification status and video count
     video_count = await get_user_video_count(user_id)
-    print(f"[DEBUG] User {user_id} video_count: {video_count}")
-    print(f"[DEBUG] User {user_id} verified status: {verify_status['is_verified']}")
 
     if video_count < 3 or verify_status['is_verified']:
-        print(f"[DEBUG] Allowing video access for user {user_id}")
         try:
             base64_string = message.text.split(" ", 1)[1]
         except:
@@ -119,11 +115,9 @@ async def start_command(client: Client, message: Message):
 
             if video_count < 3:
                 await increment_user_video_count(user_id)
-                print(f"[DEBUG] Incremented video count for user {user_id}")
         return
 
     else:
-        print(f"[DEBUG] Asking user {user_id} for verification")
         if not verify_status['is_verified'] and IS_VERIFY:
             token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
             await update_verify_status(user_id, verify_token=token, link="")
@@ -155,6 +149,19 @@ async def start_command(client: Client, message: Message):
         reply_markup=reply_markup,
         disable_web_page_preview=True,
         quote=True
-    )
+        )
+
+# Add reset command here
+
+@Bot.on_message(filters.command('reset') & filters.private)
+async def reset_user_data(client: Client, message: Message):
+    user_id = message.from_user.id
+    # Reset verification status
+    await update_verify_status(user_id, verify_token="", is_verified=False, verified_time=0, link="")
+    # Reset video count directly in DB
+    await user_data.update_one({'_id': user_id}, {'$set': {'video_count': 0}})
+    await message.reply("Your video count and verification status have been reset. You can test free videos and verification again.")
+            
+    
                                                       
                     
