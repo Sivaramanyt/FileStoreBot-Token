@@ -158,7 +158,7 @@ async def start_command(client: Client, message):
 
                 btn = [
                     [InlineKeyboardButton("Click here to Verify", url=shortlink)],
-                    [InlineKeyboardButton("How to Complete Verification", url="https://t.me/YourTutorialPost")]  # Replace with your tutorial link
+                    [InlineKeyboardButton("How to Complete Verification", url="https://t.me/Sr_Movie_Links/52")]  # Replace with your tutorial link
                 ]
 
                 await message.reply(
