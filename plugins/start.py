@@ -36,7 +36,6 @@ from database.database import (
 async def start_command(client: Client, message):
     user_id = message.from_user.id
 
-    # Ensure user exists in database
     if not await present_user(user_id):
         try:
             await add_user(user_id)
@@ -44,13 +43,12 @@ async def start_command(client: Client, message):
             print(f"Error adding user: {e}")
 
     verify_status = await get_verify_status(user_id)
-    # Expire verification if timed out
+
     if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
         await update_verify_status(user_id, is_verified=False)
 
     text = message.text
 
-    # Handle verification token in /start parameter
     if "verify_" in text:
         _, token = text.split("_", 1)
         if verify_status['verify_token'] != token:
@@ -76,7 +74,7 @@ async def start_command(client: Client, message):
                 end = int(int(argument) / abs(client.db_channel.id))
                 msg_ids = list(range(start, end + 1)) if start <= end else list(range(start, end - 1, -1))
             elif len(argument) == 2:
-                msg_ids = [int(int(argument[9]) / abs(client.db_channel.id))]
+                msg_ids = [int(int(argument[1]) / abs(client.db_channel.id))]
         except Exception:
             return
 
@@ -89,16 +87,15 @@ async def start_command(client: Client, message):
         view_count = await get_view_count(user_id)
 
         if view_count < 3:
-            # Allow free access for first 3 videos
             for msg in messages:
-                caption = (
-                    CUSTOM_CAPTION.format(
+                caption = ""
+                if bool(CUSTOM_CAPTION) and bool(msg.document):
+                    caption = CUSTOM_CAPTION.format(
                         previouscaption="" if not msg.caption else msg.caption.html,
-                        filename=msg.document.file_name if msg.document else ""
+                        filename=msg.document.file_name,
                     )
-                    if bool(CUSTOM_CAPTION) and bool(msg.document)
-                    else "" if not msg.caption else msg.caption.html
-                )
+                elif msg.caption:
+                    caption = msg.caption.html
 
                 reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
 
@@ -113,19 +110,21 @@ async def start_command(client: Client, message):
                     await asyncio.sleep(0.5)
                 except Exception:
                     pass
+
             await increment_view_count(user_id)
+
         else:
-            # Require verification after 3 free videos
             if verify_status['is_verified']:
                 for msg in messages:
-                    caption = (
-                        CUSTOM_CAPTION.format(
+                    caption = ""
+                    if bool(CUSTOM_CAPTION) and bool(msg.document):
+                        caption = CUSTOM_CAPTION.format(
                             previouscaption="" if not msg.caption else msg.caption.html,
-                            filename=msg.document.file_name if msg.document else ""
+                            filename=msg.document.file_name,
                         )
-                        if bool(CUSTOM_CAPTION) and bool(msg.document)
-                        else "" if not msg.caption else msg.caption.html
-                    )
+                    elif msg.caption:
+                        caption = msg.caption.html
+
                     reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
 
                     try:
@@ -139,7 +138,9 @@ async def start_command(client: Client, message):
                         await asyncio.sleep(0.5)
                     except Exception:
                         pass
+
                 await increment_view_count(user_id)
+
             else:
                 token = "".join(random.choices(string.ascii_letters + string.digits, k=10))
                 await update_verify_status(user_id, verify_token=token, is_verified=False, verified_time=0, link="")
@@ -158,7 +159,7 @@ async def start_command(client: Client, message):
 
                 btn = [
                     [InlineKeyboardButton("Click here to Verify", url=shortlink)],
-                    [InlineKeyboardButton("How to Complete Verification", url="https://t.me/Sr_Movie_Links/52")]  # Replace with your tutorial link
+                    [InlineKeyboardButton("How to Complete Verification", url="https://t.me/Sr_Movie_Links/52")]
                 ]
 
                 await message.reply(
@@ -168,7 +169,6 @@ async def start_command(client: Client, message):
                 )
         return
 
-    # Default welcome message when no video requested
     if verify_status['is_verified']:
         reply_markup = InlineKeyboardMarkup(
             [
@@ -201,9 +201,5 @@ async def start_command(client: Client, message):
             "Please verify to use this bot and access videos.",
             reply_markup=InlineKeyboardMarkup(btn),
             protect_content=False,
-                )
-                    
+        )
         
-        
-        
-            
