@@ -34,26 +34,22 @@ from shortzy import Shortzy
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message: Message):
     user_id = message.from_user.id
-    owner_id = ADMINS  # Your Admin list from config
+    owner_id = ADMINS
 
-    # Owner-specific logic (optional)
     if user_id == owner_id:
         await message.reply("You are the owner! Additional actions can be added here.")
         return
 
-    # Add user if not present
     if not await present_user(user_id):
         try:
             await add_user(user_id)
         except:
             pass
 
-    # Verify status & expiry check
     verify_status = await get_verify_status(user_id)
     if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
         await update_verify_status(user_id, is_verified=False)
 
-    # Token verification flow
     if "verify_" in message.text:
         _, token = message.text.split("_", 1)
         if verify_status['verify_token'] != token:
@@ -62,13 +58,9 @@ async def start_command(client: Client, message: Message):
         await message.reply(f"Your token successfully verified and valid for: 24 Hour", protect_content=False, quote=True)
         return
 
-    # Check user's video access count
     video_count = await get_user_video_count(user_id)
 
-    if video_count < 3:
-        # User gets free video access
-
-        # Your existing logic to parse and send messages/videos below
+    if video_count < 3 or verify_status['is_verified']:
         try:
             base64_string = message.text.split(" ", 1)[1]
         except:
@@ -78,11 +70,10 @@ async def start_command(client: Client, message: Message):
             _string = await decode(base64_string)
             argument = _string.split("-")
 
-            # Your existing logic for getting message ids to send (keep unchanged)
             if len(argument) == 3:
                 try:
                     start = int(int(argument[1]) / abs(client.db_channel.id))
-                    end = int(int(argument[11]) / abs(client.db_channel.id))
+                    end = int(int(argument[2]) / abs(client.db_channel.id))
                 except:
                     return
                 if start <= end:
@@ -113,7 +104,6 @@ async def start_command(client: Client, message: Message):
 
             await temp_msg.delete()
 
-            # Send messages/videos, apply captions and buttons as per your config
             for msg in messages:
                 if bool(CUSTOM_CAPTION) and bool(msg.document):
                     caption = CUSTOM_CAPTION.format(previouscaption="" if not msg.caption else msg.caption.html, filename=msg.document.file_name)
@@ -131,12 +121,11 @@ async def start_command(client: Client, message: Message):
                 except:
                     pass
 
-            # Increment user's video count after sending free videos
-            await increment_user_video_count(user_id)
-            return
+            if video_count < 3:
+                await increment_user_video_count(user_id)
+        return
 
     else:
-        # Require shortlink verification for 4th+ video access
         if not verify_status['is_verified'] and IS_VERIFY:
             token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
             await update_verify_status(user_id, verify_token=token, link="")
@@ -153,7 +142,6 @@ async def start_command(client: Client, message: Message):
             )
             return
 
-    # Other existing /start command flow here (e.g., send welcome message or about info)
     reply_markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton("About Me", callback_data="about"),
           InlineKeyboardButton("Close", callback_data="close")]]
@@ -169,5 +157,6 @@ async def start_command(client: Client, message: Message):
         reply_markup=reply_markup,
         disable_web_page_preview=True,
         quote=True
-            )
+        )
+                        
                     
