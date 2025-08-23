@@ -9,10 +9,9 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from bot import Bot
 from config import (
-    ADMINS,
     VERIFY_EXPIRE,
-    SHORTLINK_API,
     SHORTLINK_URL,
+    SHORTLINK_API,
     CUSTOM_CAPTION,
     DISABLE_CHANNEL_BUTTON,
     PROTECT_CONTENT,
@@ -37,7 +36,7 @@ from database.database import (
 async def start_command(client: Client, message):
     user_id = message.from_user.id
 
-    # Add user if new
+    # Ensure user is in DB
     if not await present_user(user_id):
         try:
             await add_user(user_id)
@@ -45,13 +44,13 @@ async def start_command(client: Client, message):
             pass
 
     verify_status = await get_verify_status(user_id)
-    # Expire verification if expired
+    # Expire verification if out of date
     if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
         await update_verify_status(user_id, is_verified=False)
 
     text = message.text
 
-    # Verification token submit handler
+    # Verification token submit
     if "verify_" in text:
         _, token = text.split("_", 1)
         if verify_status['verify_token'] != token:
@@ -60,21 +59,21 @@ async def start_command(client: Client, message):
         await message.reply("Your token is successfully verified and valid for 24 hours.")
         return
 
-    # Handling start with video link parameter
+    # Main handler for video links
     if len(text) > 7:
         try:
             base64_str = text.split(" ", 1)[1]
         except:
             return
 
-        _string = await decode(base64_str)
-        argument = _string.split("-")
+        decoded_str = await decode(base64_str)
+        argument = decoded_str.split("-")
         msg_ids = []
 
         try:
             if len(argument) == 3:
                 start = int(int(argument[1]) / abs(client.db_channel.id))
-                end = int(int(argument[9]) / abs(client.db_channel.id))
+                end = int(int(argument[2]) / abs(client.db_channel.id))
                 msg_ids = list(range(start, end + 1)) if start <= end else list(range(start, end - 1, -1))
             elif len(argument) == 2:
                 msg_ids = [int(int(argument[1]) / abs(client.db_channel.id))]
@@ -87,16 +86,20 @@ async def start_command(client: Client, message):
             await message.reply("Something went wrong fetching the messages.")
             return
 
-        # Get user's video view count
         view_count = await get_view_count(user_id)
 
+        # ---- THIS IS THE STRICT ENFORCEMENT ----
         if view_count < 3:
-            # User within free limit, allow access without verification
+            # Allow access and increment count
             for msg in messages:
-                caption = CUSTOM_CAPTION.format(
-                    previouscaption="" if not msg.caption else msg.caption.html,
-                    filename=msg.document.file_name if msg.document else ""
-                ) if bool(CUSTOM_CAPTION) and bool(msg.document) else "" if not msg.caption else msg.caption.html
+                caption = (
+                    CUSTOM_CAPTION.format(
+                        previouscaption="" if not msg.caption else msg.caption.html,
+                        filename=msg.document.file_name if msg.document else ""
+                    )
+                    if bool(CUSTOM_CAPTION) and bool(msg.document)
+                    else "" if not msg.caption else msg.caption.html
+                )
 
                 reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
 
@@ -112,18 +115,20 @@ async def start_command(client: Client, message):
                 except Exception:
                     pass
 
-            await increment_view_count(user_id)
+            await increment_view_count(user_id)  # Only increment when giving free video
 
         else:
-            # User at or above free limit, require verification
+            # After 3rd, enforce verification
             if verify_status['is_verified']:
-                # Verified user, allow
                 for msg in messages:
-                    caption = CUSTOM_CAPTION.format(
-                        previouscaption="" if not msg.caption else msg.caption.html,
-                        filename=msg.document.file_name if msg.document else ""
-                    ) if bool(CUSTOM_CAPTION) and bool(msg.document) else "" if not msg.caption else msg.caption.html
-
+                    caption = (
+                        CUSTOM_CAPTION.format(
+                            previouscaption="" if not msg.caption else msg.caption.html,
+                            filename=msg.document.file_name if msg.document else ""
+                        )
+                        if bool(CUSTOM_CAPTION) and bool(msg.document)
+                        else "" if not msg.caption else msg.caption.html
+                    )
                     reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
 
                     try:
@@ -140,10 +145,13 @@ async def start_command(client: Client, message):
 
                 await increment_view_count(user_id)
             else:
-                # Not verified, show verification link
+                # Block and ask for verification
                 token = "".join(random.choices(string.ascii_letters + string.digits, k=10))
                 await update_verify_status(user_id, verify_token=token, is_verified=False, verified_time=0, link="")
-                shortlink = await get_shortlink(SHORTLINK_URL, SHORTLINK_API, f"https://telegram.dog/{client.username}?start=verify_{token}")
+                shortlink = await get_shortlink(
+                    SHORTLINK_URL, SHORTLINK_API,
+                    f"https://telegram.dog/{client.username}?start=verify_{token}"
+                )
                 btn = [[InlineKeyboardButton("Click here to Verify", url=shortlink)]]
                 await message.reply(
                     "You have reached the free view limit.\nPlease verify to access more videos.",
@@ -154,11 +162,10 @@ async def start_command(client: Client, message):
 
     # If no video parameter, show greeting or verification as appropriate
     if verify_status['is_verified']:
-        reply_markup = InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton("About Me", callback_data="about"), InlineKeyboardButton("Close", callback_data="close")]
-            ]
-        )
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("About Me", callback_data="about"),
+             InlineKeyboardButton("Close", callback_data="close")]
+        ])
         await message.reply_text(
             START_MSG.format(
                 first=message.from_user.first_name,
@@ -174,12 +181,16 @@ async def start_command(client: Client, message):
     else:
         token = "".join(random.choices(string.ascii_letters + string.digits, k=10))
         await update_verify_status(user_id, verify_token=token, is_verified=False, verified_time=0, link="")
-        shortlink = await get_shortlink(SHORTLINK_URL, SHORTLINK_API, f"https://telegram.dog/{client.username}?start=verify_{token}")
+        shortlink = await get_shortlink(
+            SHORTLINK_URL, SHORTLINK_API,
+            f"https://telegram.dog/{client.username}?start=verify_{token}"
+        )
         btn = [[InlineKeyboardButton("Click here to Verify", url=shortlink)]]
         await message.reply(
             "Please verify to use this bot and access videos.",
             reply_markup=InlineKeyboardMarkup(btn),
             protect_content=False,
-        )
+            )
+        
         
             
