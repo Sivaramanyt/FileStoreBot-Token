@@ -8,6 +8,7 @@ from pyrogram.enums import ParseMode
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from bot import Bot
+
 from config import (
     VERIFY_EXPIRE,
     SHORTLINK_URL,
@@ -17,6 +18,7 @@ from config import (
     PROTECT_CONTENT,
     START_MSG,
 )
+
 from helper_func import (
     decode,
     get_messages,
@@ -25,17 +27,20 @@ from helper_func import (
     update_verify_status,
     subscribed,
 )
+
 from database.database import (
     add_user,
     present_user,
     get_view_count,
     increment_view_count,
-    # You might need to import user_data for reset reset_user_data function (illustrated below)
+    user_data  # Added here to handle /reset command properly
 )
+
 
 # Debug print helper
 def debug_log(msg):
     print(f"[DEBUG] {msg}")
+
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message):
@@ -64,6 +69,7 @@ async def start_command(client: Client, message):
         if verify_status['verify_token'] != token:
             await message.reply("Your token is invalid or expired. Try again by clicking /start")
             return
+
         await update_verify_status(user_id, is_verified=True, verified_time=time.time())
         await message.reply("Your token is successfully verified and valid for 6 hours.")
         return
@@ -95,11 +101,10 @@ async def start_command(client: Client, message):
             return
 
         view_count = await get_view_count(user_id)
-
         debug_log(f"User {user_id} view count: {view_count}")
 
         if view_count < 3:
-            # Free access
+            # Free access for first 3 videos
             for msg in messages:
                 caption = ""
                 if bool(CUSTOM_CAPTION) and bool(msg.document):
@@ -127,6 +132,7 @@ async def start_command(client: Client, message):
             await increment_view_count(user_id)
 
         else:
+            # Require verification after 3 free videos
             if verify_status['is_verified']:
                 for msg in messages:
                     caption = ""
@@ -217,11 +223,10 @@ async def start_command(client: Client, message):
             protect_content=False,
         )
 
-# Reset command to clear user's verification and view count
+
 @Bot.on_message(filters.command('reset') & filters.private)
 async def reset_command(client: Client, message):
     user_id = message.from_user.id
-
     try:
         default_verify = {
             'is_verified': False,
@@ -230,12 +235,8 @@ async def reset_command(client: Client, message):
             'link': ""
         }
         await update_verify_status(user_id, default_verify)
-
-        # Assuming access to user_data collection from database module
-        from database.database import user_data
         await user_data.update_one({'_id': user_id}, {'$set': {'view_count': 0}})
-
         await message.reply("Your verification status and view count have been reset. You can watch free videos again.")
     except Exception as e:
         await message.reply(f"Failed to reset your data: {e}")
-
+            
