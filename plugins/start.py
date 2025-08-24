@@ -30,7 +30,12 @@ from database.database import (
     present_user,
     get_view_count,
     increment_view_count,
+    # You might need to import user_data for reset reset_user_data function (illustrated below)
 )
+
+# Debug print helper
+def debug_log(msg):
+    print(f"[DEBUG] {msg}")
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message):
@@ -40,12 +45,17 @@ async def start_command(client: Client, message):
         try:
             await add_user(user_id)
         except Exception as e:
-            print(f"Error adding user: {e}")
+            debug_log(f"Error adding user: {e}")
 
     verify_status = await get_verify_status(user_id)
 
+    # Expire verification if timed out
     if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
         await update_verify_status(user_id, is_verified=False)
+        verify_status['is_verified'] = False
+
+    debug_log(f"User {user_id} verification status: {verify_status['is_verified']}")
+    debug_log(f"User {user_id} verified time: {verify_status['verified_time']}")
 
     text = message.text
 
@@ -71,7 +81,7 @@ async def start_command(client: Client, message):
         try:
             if len(argument) == 3:
                 start = int(int(argument[1]) / abs(client.db_channel.id))
-                end = int(int(argument) / abs(client.db_channel.id))
+                end = int(int(argument[2]) / abs(client.db_channel.id))
                 msg_ids = list(range(start, end + 1)) if start <= end else list(range(start, end - 1, -1))
             elif len(argument) == 2:
                 msg_ids = [int(int(argument[1]) / abs(client.db_channel.id))]
@@ -86,7 +96,10 @@ async def start_command(client: Client, message):
 
         view_count = await get_view_count(user_id)
 
+        debug_log(f"User {user_id} view count: {view_count}")
+
         if view_count < 3:
+            # Free access
             for msg in messages:
                 caption = ""
                 if bool(CUSTOM_CAPTION) and bool(msg.document):
@@ -144,6 +157,7 @@ async def start_command(client: Client, message):
             else:
                 token = "".join(random.choices(string.ascii_letters + string.digits, k=10))
                 await update_verify_status(user_id, verify_token=token, is_verified=False, verified_time=0, link="")
+
                 shortlink = await get_shortlink(
                     SHORTLINK_URL,
                     SHORTLINK_API,
@@ -159,7 +173,7 @@ async def start_command(client: Client, message):
 
                 btn = [
                     [InlineKeyboardButton("Click here to Verify", url=shortlink)],
-                    [InlineKeyboardButton("How to Complete Verification", url="https://t.me/Sr_Movie_Links/52")]
+                    [InlineKeyboardButton("How to Complete Verification", url="https://t.me/Sr_Movie_Links/52")]  # Tutorial link
                 ]
 
                 await message.reply(
@@ -202,4 +216,26 @@ async def start_command(client: Client, message):
             reply_markup=InlineKeyboardMarkup(btn),
             protect_content=False,
         )
-        
+
+# Reset command to clear user's verification and view count
+@Bot.on_message(filters.command('reset') & filters.private)
+async def reset_command(client: Client, message):
+    user_id = message.from_user.id
+
+    try:
+        default_verify = {
+            'is_verified': False,
+            'verified_time': 0,
+            'verify_token': "",
+            'link': ""
+        }
+        await update_verify_status(user_id, default_verify)
+
+        # Assuming access to user_data collection from database module
+        from database.database import user_data
+        await user_data.update_one({'_id': user_id}, {'$set': {'view_count': 0}})
+
+        await message.reply("Your verification status and view count have been reset. You can watch free videos again.")
+    except Exception as e:
+        await message.reply(f"Failed to reset your data: {e}")
+
