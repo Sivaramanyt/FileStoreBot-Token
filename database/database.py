@@ -71,4 +71,3 @@ async def get_view_count(user_id: int):
 async def increment_view_count(user_id: int):
     await user_data.update_one({'_id': user_id}, {'$inc': {'view_count': 1}})
     
-        
