@@ -33,14 +33,11 @@ from database.database import (
     present_user,
     get_view_count,
     increment_view_count,
-    user_data  # Added here to handle /reset command properly
+    user_data  # Imported here to reset view_count in reset command
 )
 
-
-# Debug print helper
 def debug_log(msg):
     print(f"[DEBUG] {msg}")
-
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message):
@@ -54,7 +51,6 @@ async def start_command(client: Client, message):
 
     verify_status = await get_verify_status(user_id)
 
-    # Expire verification if timed out
     if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
         await update_verify_status(user_id, is_verified=False)
         verify_status['is_verified'] = False
@@ -69,7 +65,6 @@ async def start_command(client: Client, message):
         if verify_status['verify_token'] != token:
             await message.reply("Your token is invalid or expired. Try again by clicking /start")
             return
-
         await update_verify_status(user_id, is_verified=True, verified_time=time.time())
         await message.reply("Your token is successfully verified and valid for 6 hours.")
         return
@@ -104,7 +99,6 @@ async def start_command(client: Client, message):
         debug_log(f"User {user_id} view count: {view_count}")
 
         if view_count < 3:
-            # Free access for first 3 videos
             for msg in messages:
                 caption = ""
                 if bool(CUSTOM_CAPTION) and bool(msg.document):
@@ -114,7 +108,6 @@ async def start_command(client: Client, message):
                     )
                 elif msg.caption:
                     caption = msg.caption.html
-
                 reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
 
                 try:
@@ -132,7 +125,6 @@ async def start_command(client: Client, message):
             await increment_view_count(user_id)
 
         else:
-            # Require verification after 3 free videos
             if verify_status['is_verified']:
                 for msg in messages:
                     caption = ""
@@ -143,7 +135,6 @@ async def start_command(client: Client, message):
                         )
                     elif msg.caption:
                         caption = msg.caption.html
-
                     reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
 
                     try:
@@ -179,7 +170,7 @@ async def start_command(client: Client, message):
 
                 btn = [
                     [InlineKeyboardButton("Click here to Verify", url=shortlink)],
-                    [InlineKeyboardButton("How to Complete Verification", url="https://t.me/Sr_Movie_Links/52")]  # Tutorial link
+                    [InlineKeyboardButton("How to Complete Verification", url="https://t.me/Sr_Movie_Links/52")]
                 ]
 
                 await message.reply(
@@ -239,4 +230,4 @@ async def reset_command(client: Client, message):
         await message.reply("Your verification status and view count have been reset. You can watch free videos again.")
     except Exception as e:
         await message.reply(f"Failed to reset your data: {e}")
-            
+                                    
