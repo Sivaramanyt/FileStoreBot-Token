@@ -1,3 +1,7 @@
+
+
+
+
 import asyncio
 import random
 import string
@@ -33,11 +37,13 @@ from database.database import (
     present_user,
     get_view_count,
     increment_view_count,
-    user_data  # Imported here to reset view_count in reset command
+    user_data
 )
+
 
 def debug_log(msg):
     print(f"[DEBUG] {msg}")
+
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message):
@@ -108,6 +114,7 @@ async def start_command(client: Client, message):
                     )
                 elif msg.caption:
                     caption = msg.caption.html
+
                 reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
 
                 try:
@@ -135,6 +142,7 @@ async def start_command(client: Client, message):
                         )
                     elif msg.caption:
                         caption = msg.caption.html
+
                     reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
 
                     try:
@@ -230,4 +238,4 @@ async def reset_command(client: Client, message):
         await message.reply("Your verification status and view count have been reset. You can watch free videos again.")
     except Exception as e:
         await message.reply(f"Failed to reset your data: {e}")
-                                    
+        
